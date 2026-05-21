@@ -1,2 +1,5 @@
 ### Health check
 GET http://localhost:8080/health
+
+### Authorization Server Metadata (RFC 8414)
+GET http://localhost:8080/.well-known/oauth-authorization-server
