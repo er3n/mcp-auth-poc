@@ -24,6 +24,7 @@ func main() {
 	http.HandleFunc("GET /.well-known/oauth-authorization-server", authserver.NewMetadataHandler(issuer))
 	http.HandleFunc("/authorize", authserver.NewAuthorizeHandler(store))
 	http.HandleFunc("POST /token", authserver.NewTokenHandler(store))
+	http.HandleFunc("POST /revoke", authserver.NewRevokeHandler(store))
 
 	log.Printf("Server starting on :8080 (issuer: %s)", issuer)
 	log.Fatal(http.ListenAndServe(":8080", nil))

@@ -26,6 +26,18 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token&refresh_token=1kdi54qYVWFxh9kKx3nuooYQYj-TpuHKzrtJRunDg-c&client_id=test-client
 
+### Step 5: POST /revoke — revoke refresh token (RFC 7009)
+POST http://localhost:8080/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=PASTE_REFRESH_TOKEN_HERE&token_type_hint=refresh_token
+
+### Step 6: POST /revoke — revoke access token (RFC 7009)
+POST http://localhost:8080/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=PASTE_ACCESS_TOKEN_HERE&token_type_hint=access_token
+
 ### --- Error cases ---
 
 ### Wrong code_verifier — expect invalid_grant

@@ -92,6 +92,12 @@ func (s *Store) GetRefreshToken(token string) (RefreshTokenInfo, bool) {
 	return t, ok
 }
 
+func (s *Store) DeleteAccessToken(token string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.accessTokens, token)
+}
+
 // DeleteRefreshToken is called on rotation — old token is consumed, new one issued.
 func (s *Store) DeleteRefreshToken(token string) {
 	s.mu.Lock()
