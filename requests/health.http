@@ -3,13 +3,3 @@ GET http://localhost:8080/health
 
 ### Authorization Server Metadata (RFC 8414)
 GET http://localhost:8080/.well-known/oauth-authorization-server
-
-### Authorization endpoint - GET (RFC 6749 + PKCE RFC 7636)
-GET http://localhost:8080/authorize?client_id=test&response_type=code&redirect_uri=http://localhost:9000/callback&code_challenge=test123&code_challenge_method=S256&state=xyz&scope=mcp
-
-### Authorization confirm - POST (user approves)
-# @no-redirect
-POST http://localhost:8080/authorize
-Content-Type: application/x-www-form-urlencoded
-
-client_id=test&response_type=code&redirect_uri=http://localhost:9000/callback&code_challenge=test123&code_challenge_method=S256&state=xyz&scope=mcp
