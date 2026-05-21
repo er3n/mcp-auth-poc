@@ -1,0 +1,115 @@
+### MCP Resource Server — Test Requests
+### Start the auth server first:  go run ./cmd/server/
+### Start the resource server:    go run ./cmd/resource/
+### Then run steps below in order.
+
+### ────────────────────────────────────────────────
+### Step 1: Check RFC 9728 metadata (no auth needed)
+### Expected: 200, JSON with resource + authorization_servers
+### ────────────────────────────────────────────────
+GET http://localhost:8081/.well-known/oauth-protected-resource
+
+### ────────────────────────────────────────────────
+### Step 2: Try MCP without a token — must get 401
+### Check the WWW-Authenticate header in the response:
+###   Bearer realm="mcp-auth-poc", resource_metadata="http://localhost:8081/..."
+### This is the MCP Auth discovery signal — clients follow resource_metadata.
+### ────────────────────────────────────────────────
+POST http://localhost:8081/mcp
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {"name": "test-client", "version": "1.0"}
+  }
+}
+
+### ────────────────────────────────────────────────
+### Steps 3-6: Get a fresh access token first!
+###
+### Run the full PKCE flow from token.http (Steps 1-4),
+### then paste the access_token value below.
+### ────────────────────────────────────────────────
+
+### Step 3: Initialize MCP session (with valid token)
+### Expected: 200, protocolVersion + capabilities + serverInfo
+POST http://localhost:8081/mcp
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {},
+    "clientInfo": {"name": "test-client", "version": "1.0"}
+  }
+}
+
+### Step 4: List available tools
+### Expected: 200, {"tools": [{"name": "echo", ...}, {"name": "current_time", ...}]}
+POST http://localhost:8081/mcp
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
+}
+
+### Step 5: Call the echo tool
+### Expected: 200, {"content": [{"type": "text", "text": "Hello, MCP!"}]}
+POST http://localhost:8081/mcp
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "echo",
+    "arguments": {"message": "Hello, MCP!"}
+  }
+}
+
+### Step 6: Call the current_time tool
+### Expected: 200, {"content": [{"type": "text", "text": "2026-05-21T...Z"}]}
+POST http://localhost:8081/mcp
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "tools/call",
+  "params": {
+    "name": "current_time",
+    "arguments": {}
+  }
+}
+
+### Step 7: Error case — unknown tool
+### Expected: 200 with JSON-RPC error {"code": -32602, "message": "unknown tool: whoami"}
+POST http://localhost:8081/mcp
+Authorization: Bearer PASTE_ACCESS_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 5,
+  "method": "tools/call",
+  "params": {
+    "name": "whoami",
+    "arguments": {}
+  }
+}

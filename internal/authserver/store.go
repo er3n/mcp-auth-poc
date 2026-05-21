@@ -26,16 +26,27 @@ type RefreshTokenInfo struct {
 	ExpiresAt time.Time
 }
 
+// ClientInfo holds a dynamically registered OAuth client (RFC 7591).
+// We only support public clients (no client_secret) — appropriate for MCP desktop apps.
+type ClientInfo struct {
+	ClientID     string
+	RedirectURIs []string
+	Name         string
+	CreatedAt    time.Time
+}
+
 type Store struct {
 	mu            sync.RWMutex
 	codes         map[string]AuthCode
 	refreshTokens map[string]RefreshTokenInfo
+	clients       map[string]ClientInfo
 }
 
 func NewStore() *Store {
 	return &Store{
 		codes:         make(map[string]AuthCode),
 		refreshTokens: make(map[string]RefreshTokenInfo),
+		clients:       make(map[string]ClientInfo),
 	}
 }
 
@@ -76,4 +87,17 @@ func (s *Store) DeleteRefreshToken(token string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.refreshTokens, token)
+}
+
+func (s *Store) RegisterClient(c ClientInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clients[c.ClientID] = c
+}
+
+func (s *Store) GetClient(clientID string) (ClientInfo, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	c, ok := s.clients[clientID]
+	return c, ok
 }

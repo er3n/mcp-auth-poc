@@ -13,11 +13,11 @@ func NewAuthorizeHandler(store *Store) http.HandlerFunc {
 			handleAuthorizeConfirm(w, r, store)
 			return
 		}
-		handleAuthorizeForm(w, r)
+		handleAuthorizeForm(w, r, store)
 	}
 }
 
-func handleAuthorizeForm(w http.ResponseWriter, r *http.Request) {
+func handleAuthorizeForm(w http.ResponseWriter, r *http.Request, store *Store) {
 	q := r.URL.Query()
 	clientID := q.Get("client_id")
 	responseType := q.Get("response_type")
@@ -37,6 +37,20 @@ func handleAuthorizeForm(w http.ResponseWriter, r *http.Request) {
 	}
 	if codeChallengeMethod != "S256" {
 		http.Error(w, "unsupported code_challenge_method, use S256", http.StatusBadRequest)
+		return
+	}
+
+	// RFC 7591: only registered clients may initiate authorization.
+	client, ok := store.GetClient(clientID)
+	if !ok {
+		http.Error(w, "unknown client_id — register first via POST /register", http.StatusUnauthorized)
+		return
+	}
+
+	// OAuth 2.1 §4.1.1: redirect_uri must exactly match a registered URI.
+	// This prevents open redirector attacks — attackers can't redirect to their own server.
+	if !containsURI(client.RedirectURIs, redirectURI) {
+		http.Error(w, "redirect_uri not registered for this client", http.StatusBadRequest)
 		return
 	}
 
@@ -76,6 +90,17 @@ func handleAuthorizeConfirm(w http.ResponseWriter, r *http.Request, store *Store
 		return
 	}
 
+	// Re-validate on POST too — form values could be tampered.
+	client, ok := store.GetClient(clientID)
+	if !ok {
+		http.Error(w, "unknown client_id", http.StatusUnauthorized)
+		return
+	}
+	if !containsURI(client.RedirectURIs, redirectURI) {
+		http.Error(w, "redirect_uri not registered for this client", http.StatusBadRequest)
+		return
+	}
+
 	code, err := generateCode()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -98,6 +123,15 @@ func handleAuthorizeConfirm(w http.ResponseWriter, r *http.Request, store *Store
 		redirectURL += "&state=" + state
 	}
 	http.Redirect(w, r, redirectURL, http.StatusFound)
+}
+
+func containsURI(uris []string, target string) bool {
+	for _, u := range uris {
+		if u == target {
+			return true
+		}
+	}
+	return false
 }
 
 func generateCode() (string, error) {
