@@ -15,16 +15,8 @@ type AuthCode struct {
 	ExpiresAt           time.Time
 }
 
-// AccessTokenInfo holds metadata for a issued access token.
-// In production you'd use JWT — opaque tokens require server-side lookup.
-type AccessTokenInfo struct {
-	Token     string
-	ClientID  string
-	Scope     string
-	ExpiresAt time.Time
-}
-
 // RefreshTokenInfo is stored server-side to support rotation + replay detection.
+// Access tokens are JWTs — self-contained, no server-side storage needed.
 type RefreshTokenInfo struct {
 	Token     string
 	ClientID  string
@@ -35,14 +27,12 @@ type RefreshTokenInfo struct {
 type Store struct {
 	mu            sync.RWMutex
 	codes         map[string]AuthCode
-	accessTokens  map[string]AccessTokenInfo
 	refreshTokens map[string]RefreshTokenInfo
 }
 
 func NewStore() *Store {
 	return &Store{
 		codes:         make(map[string]AuthCode),
-		accessTokens:  make(map[string]AccessTokenInfo),
 		refreshTokens: make(map[string]RefreshTokenInfo),
 	}
 }
@@ -66,19 +56,6 @@ func (s *Store) DeleteCode(code string) {
 	delete(s.codes, code)
 }
 
-func (s *Store) SaveAccessToken(t AccessTokenInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.accessTokens[t.Token] = t
-}
-
-func (s *Store) GetAccessToken(token string) (AccessTokenInfo, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	t, ok := s.accessTokens[token]
-	return t, ok
-}
-
 func (s *Store) SaveRefreshToken(t RefreshTokenInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,12 +67,6 @@ func (s *Store) GetRefreshToken(token string) (RefreshTokenInfo, bool) {
 	defer s.mu.RUnlock()
 	t, ok := s.refreshTokens[token]
 	return t, ok
-}
-
-func (s *Store) DeleteAccessToken(token string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.accessTokens, token)
 }
 
 // DeleteRefreshToken is called on rotation — old token is consumed, new one issued.

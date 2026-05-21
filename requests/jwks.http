@@ -1,0 +1,2 @@
+### JWKS endpoint (RFC 7517) — public key for JWT verification
+GET http://localhost:8080/.well-known/jwks.json

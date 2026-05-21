@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // tokenResponse matches the shape defined in RFC 6749 §5.1 (reused by OAuth 2.1).
@@ -24,7 +26,7 @@ type tokenErrorResponse struct {
 	ErrorDescription string `json:"error_description,omitempty"`
 }
 
-func NewTokenHandler(store *Store) http.HandlerFunc {
+func NewTokenHandler(store *Store, kp *KeyPair, issuer string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			writeTokenError(w, "invalid_request", "only POST is allowed", http.StatusMethodNotAllowed)
@@ -39,9 +41,9 @@ func NewTokenHandler(store *Store) http.HandlerFunc {
 		grantType := r.FormValue("grant_type")
 		switch grantType {
 		case "authorization_code":
-			handleAuthorizationCodeGrant(w, r, store)
+			handleAuthorizationCodeGrant(w, r, store, kp, issuer)
 		case "refresh_token":
-			handleRefreshTokenGrant(w, r, store)
+			handleRefreshTokenGrant(w, r, store, kp, issuer)
 		default:
 			// RFC 6749 §5.2: unsupported_grant_type
 			writeTokenError(w, "unsupported_grant_type", "supported: authorization_code, refresh_token", http.StatusBadRequest)
@@ -49,7 +51,7 @@ func NewTokenHandler(store *Store) http.HandlerFunc {
 	}
 }
 
-func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, store *Store) {
+func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, store *Store, kp *KeyPair, issuer string) {
 	code := r.FormValue("code")
 	clientID := r.FormValue("client_id")
 	redirectURI := r.FormValue("redirect_uri")
@@ -95,10 +97,10 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, store 
 		return
 	}
 
-	issueTokens(w, store, clientID, authCode.Scope)
+	issueTokens(w, store, kp, issuer, clientID, authCode.Scope)
 }
 
-func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, store *Store) {
+func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, store *Store, kp *KeyPair, issuer string) {
 	rawRefresh := r.FormValue("refresh_token")
 	clientID := r.FormValue("client_id")
 
@@ -131,37 +133,49 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, store *Stor
 	// If an attacker replays the old token after this, they'll get invalid_grant.
 	store.DeleteRefreshToken(rawRefresh)
 
-	issueTokens(w, store, rt.ClientID, rt.Scope)
+	issueTokens(w, store, kp, issuer, rt.ClientID, rt.Scope)
 }
 
-// issueTokens generates a new access+refresh token pair, persists them, and writes the response.
-func issueTokens(w http.ResponseWriter, store *Store, clientID, scope string) {
-	accessToken, err := generateToken()
-	if err != nil {
-		writeTokenError(w, "server_error", "failed to generate token", http.StatusInternalServerError)
-		return
+// issueTokens generates a JWT access token + opaque refresh token, and writes the response.
+func issueTokens(w http.ResponseWriter, store *Store, kp *KeyPair, issuer, clientID, scope string) {
+	now := time.Now()
+
+	// JWT access token — self-contained, no store lookup needed by resource server.
+	// Claims follow RFC 7519 + RFC 9068 (JWT Profile for OAuth 2.0 Access Tokens).
+	claims := jwt.MapClaims{
+		"iss":       issuer,
+		"sub":       clientID,
+		"client_id": clientID,
+		"scope":     scope,
+		"iat":       now.Unix(),
+		"exp":       now.Add(time.Hour).Unix(),
 	}
-	refreshToken, err := generateToken()
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	// kid in header lets resource server pick the right key from JWKS when rotating keys.
+	token.Header["kid"] = kp.KID
+
+	accessToken, err := token.SignedString(kp.Private)
 	if err != nil {
-		writeTokenError(w, "server_error", "failed to generate token", http.StatusInternalServerError)
+		writeTokenError(w, "server_error", "failed to sign token", http.StatusInternalServerError)
 		return
 	}
 
-	store.SaveAccessToken(AccessTokenInfo{
-		Token:     accessToken,
-		ClientID:  clientID,
-		Scope:     scope,
-		ExpiresAt: time.Now().Add(time.Hour),
-	})
+	// Refresh token stays opaque — it's only used by the auth server itself.
+	refreshToken, err := generateToken()
+	if err != nil {
+		writeTokenError(w, "server_error", "failed to generate refresh token", http.StatusInternalServerError)
+		return
+	}
+
 	store.SaveRefreshToken(RefreshTokenInfo{
 		Token:     refreshToken,
 		ClientID:  clientID,
 		Scope:     scope,
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour), // 30 days
+		ExpiresAt: now.Add(30 * 24 * time.Hour),
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	// RFC 6749 §5.1: cache-control headers to prevent token leakage via caches
+	// RFC 6749 §5.1: prevent token leakage via HTTP caches
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 
