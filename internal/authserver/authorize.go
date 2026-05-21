@@ -55,6 +55,7 @@ func handleAuthorizeForm(w http.ResponseWriter, r *http.Request) {
     <input type="hidden" name="code_challenge_method" value="` + codeChallengeMethod + `">
     <input type="hidden" name="state" value="` + state + `">
     <input type="hidden" name="scope" value="` + scope + `">
+    <label>Username: <input type="text" name="username" required></label><br>
     <button type="submit">Allow</button>
   </form>
 </body>
@@ -68,8 +69,9 @@ func handleAuthorizeConfirm(w http.ResponseWriter, r *http.Request, store *Store
 	codeChallengeMethod := r.FormValue("code_challenge_method")
 	state := r.FormValue("state")
 	scope := r.FormValue("scope")
+	username := r.FormValue("username")
 
-	if clientID == "" || redirectURI == "" || codeChallenge == "" {
+	if clientID == "" || redirectURI == "" || codeChallenge == "" || username == "" {
 		http.Error(w, "missing required parameters", http.StatusBadRequest)
 		return
 	}
@@ -87,6 +89,7 @@ func handleAuthorizeConfirm(w http.ResponseWriter, r *http.Request, store *Store
 		CodeChallenge:       codeChallenge,
 		CodeChallengeMethod: codeChallengeMethod,
 		Scope:               scope,
+		Subject:             username,
 		ExpiresAt:           time.Now().Add(5 * time.Minute),
 	})
 

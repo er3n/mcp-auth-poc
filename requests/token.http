@@ -12,19 +12,19 @@ GET http://localhost:8080/authorize?client_id=test-client&response_type=code&red
 POST http://localhost:8080/authorize
 Content-Type: application/x-www-form-urlencoded
 
-client_id=test-client&response_type=code&redirect_uri=http://localhost:9000/callback&code_challenge=Y831JcyYCF0Hnd-P_RNMU1r59o2cZhXX9K-b5jxza0k&code_challenge_method=S256&state=abc&scope=mcp:read
+client_id=test-client&response_type=code&redirect_uri=http://localhost:9000/callback&code_challenge=Y831JcyYCF0Hnd-P_RNMU1r59o2cZhXX9K-b5jxza0k&code_challenge_method=S256&state=abc&scope=mcp:read&username=eren
 
 ### Step 3: POST /token — exchange code for tokens (paste code from Step 2)
 POST http://localhost:8080/token
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=authorization_code&code=gWm8gpAUOvPkRYwdfZLJmkR_LXAZ2emcTg4bQ3Yuvrs&redirect_uri=http://localhost:9000/callback&client_id=test-client&code_verifier=SISAZq5-y2aD41f_ule4SEYzZpprvjsuOIHRZ8Lu9qk
+grant_type=authorization_code&code=74Qj3owck9AAyFhbKYLGGZ2niEYYMjDEWtsFbC590rw&redirect_uri=http://localhost:9000/callback&client_id=test-client&code_verifier=SISAZq5-y2aD41f_ule4SEYzZpprvjsuOIHRZ8Lu9qk
 
 ### Step 4: POST /token — refresh token rotation (paste refresh_token from Step 3)
 POST http://localhost:8080/token
 Content-Type: application/x-www-form-urlencoded
 
-grant_type=refresh_token&refresh_token=1kdi54qYVWFxh9kKx3nuooYQYj-TpuHKzrtJRunDg-c&client_id=test-client
+grant_type=refresh_token&refresh_token=5pyrI60-eOtDYZbVwzgEVDgkWzOUEOxCQ8TKS50Ew4k&client_id=test-client
 
 ### Step 5: POST /revoke — revoke refresh token (RFC 7009)
 POST http://localhost:8080/revoke

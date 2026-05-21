@@ -12,6 +12,7 @@ type AuthCode struct {
 	CodeChallenge       string
 	CodeChallengeMethod string
 	Scope               string
+	Subject             string
 	ExpiresAt           time.Time
 }
 
@@ -20,6 +21,7 @@ type AuthCode struct {
 type RefreshTokenInfo struct {
 	Token     string
 	ClientID  string
+	Subject   string
 	Scope     string
 	ExpiresAt time.Time
 }

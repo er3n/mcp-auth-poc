@@ -97,7 +97,7 @@ func handleAuthorizationCodeGrant(w http.ResponseWriter, r *http.Request, store 
 		return
 	}
 
-	issueTokens(w, store, kp, issuer, clientID, authCode.Scope)
+	issueTokens(w, store, kp, issuer, clientID, authCode.Subject, authCode.Scope)
 }
 
 func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, store *Store, kp *KeyPair, issuer string) {
@@ -133,19 +133,19 @@ func handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request, store *Stor
 	// If an attacker replays the old token after this, they'll get invalid_grant.
 	store.DeleteRefreshToken(rawRefresh)
 
-	issueTokens(w, store, kp, issuer, rt.ClientID, rt.Scope)
+	issueTokens(w, store, kp, issuer, rt.ClientID, rt.Subject, rt.Scope)
 }
 
 // issueTokens generates a JWT access token + opaque refresh token, and writes the response.
-func issueTokens(w http.ResponseWriter, store *Store, kp *KeyPair, issuer, clientID, scope string) {
+func issueTokens(w http.ResponseWriter, store *Store, kp *KeyPair, issuer, clientID, subject, scope string) {
 	now := time.Now()
 
 	// JWT access token — self-contained, no store lookup needed by resource server.
 	// Claims follow RFC 7519 + RFC 9068 (JWT Profile for OAuth 2.0 Access Tokens).
 	claims := jwt.MapClaims{
 		"iss":       issuer,
-		"sub":       clientID,
-		"client_id": clientID,
+		"sub":       subject,  // authenticated user
+		"client_id": clientID, // the app acting on their behalf
 		"scope":     scope,
 		"iat":       now.Unix(),
 		"exp":       now.Add(time.Hour).Unix(),
@@ -170,6 +170,7 @@ func issueTokens(w http.ResponseWriter, store *Store, kp *KeyPair, issuer, clien
 	store.SaveRefreshToken(RefreshTokenInfo{
 		Token:     refreshToken,
 		ClientID:  clientID,
+		Subject:   subject,
 		Scope:     scope,
 		ExpiresAt: now.Add(30 * 24 * time.Hour),
 	})

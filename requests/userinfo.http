@@ -1,0 +1,10 @@
+### GET /userinfo — validate JWT and return claims (paste access_token from token.http Step 3)
+GET http://localhost:8080/userinfo
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImtleS0xIiwidHlwIjoiSldUIn0.eyJjbGllbnRfaWQiOiJ0ZXN0LWNsaWVudCIsImV4cCI6MTc3OTM2MDg3NCwiaWF0IjoxNzc5MzU3Mjc0LCJpc3MiOiJodHRwOi8vbG9jYWxob3N0OjgwODAiLCJzY29wZSI6Im1jcDpyZWFkIiwic3ViIjoiZXJlbiJ9.SoJhx-eQqzQ9O94mZcLqXPgBtfKGyV3AKUDq5rK9ZmdT-zzkzyq2Kfv9YuVXCgW8CA91I4S4TFXDJRMQE2RTMYQcScrE9j0dDIQFdKkYLy08MiSEVeinquBUkW5N6HAk7De623T0ZrMsbAkJMAAYk8kHYRQoYaA4Z4SSsqviovGkJj8E-3k2DOQsIGidISSJwVz2W8Gms--YPgcBsv8tYUQdO9UR9Km_9TAWWGP-cukeMpMQ5WFaO55difEmALEmiiA3nL2JYiG3bYVsRQSGi6FyWb02Tgii4vjqwWSbnXX1bS9bpzziqJFfUxtVdP-Ljj1zBWCTWGmP2FFVmrC5zQ
+
+### Expired or invalid token — expect 401
+GET http://localhost:8080/userinfo
+Authorization: Bearer invalid.token.here
+
+### Missing Authorization header — expect 401
+GET http://localhost:8080/userinfo
