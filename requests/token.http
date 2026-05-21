@@ -1,0 +1,47 @@
+### PKCE Test Vectors
+# code_verifier:  SISAZq5-y2aD41f_ule4SEYzZpprvjsuOIHRZ8Lu9qk
+# code_challenge: Y831JcyYCF0Hnd-P_RNMU1r59o2cZhXX9K-b5jxza0k
+# challenge = BASE64URL(SHA256(verifier))  — RFC 7636 S256
+
+### Step 1: GET /authorize — user sees consent page
+GET http://localhost:8080/authorize?client_id=test-client&response_type=code&redirect_uri=http://localhost:9000/callback&code_challenge=Y831JcyYCF0Hnd-P_RNMU1r59o2cZhXX9K-b5jxza0k&code_challenge_method=S256&state=abc&scope=mcp:read
+
+### Step 2: POST /authorize — user clicks Allow, server issues auth code
+# Copy the `code` value from the redirect Location header into Step 3.
+# @no-redirect
+POST http://localhost:8080/authorize
+Content-Type: application/x-www-form-urlencoded
+
+client_id=test-client&response_type=code&redirect_uri=http://localhost:9000/callback&code_challenge=Y831JcyYCF0Hnd-P_RNMU1r59o2cZhXX9K-b5jxza0k&code_challenge_method=S256&state=abc&scope=mcp:read
+
+### Step 3: POST /token — exchange code for tokens (paste code from Step 2)
+POST http://localhost:8080/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=gWm8gpAUOvPkRYwdfZLJmkR_LXAZ2emcTg4bQ3Yuvrs&redirect_uri=http://localhost:9000/callback&client_id=test-client&code_verifier=SISAZq5-y2aD41f_ule4SEYzZpprvjsuOIHRZ8Lu9qk
+
+### Step 4: POST /token — refresh token rotation (paste refresh_token from Step 3)
+POST http://localhost:8080/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=refresh_token&refresh_token=1kdi54qYVWFxh9kKx3nuooYQYj-TpuHKzrtJRunDg-c&client_id=test-client
+
+### --- Error cases ---
+
+### Wrong code_verifier — expect invalid_grant
+POST http://localhost:8080/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=PASTE_CODE_HERE&redirect_uri=http://localhost:9000/callback&client_id=test-client&code_verifier=wrongverifier
+
+### Wrong grant_type — expect unsupported_grant_type
+POST http://localhost:8080/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&username=foo&password=bar
+
+### Missing parameters — expect invalid_request
+POST http://localhost:8080/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=abc123
