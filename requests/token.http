@@ -36,7 +36,7 @@ token=PASTE_REFRESH_TOKEN_HERE&token_type_hint=refresh_token
 POST http://localhost:8080/revoke
 Content-Type: application/x-www-form-urlencoded
 
-token=PASTE_ACCESS_TOKEN_HERE&token_type_hint=access_token
+token=z4ItyPnL_DTyHAckj1PKPbqXZCGGjQ3J5dMxzHcifGA&token_type_hint=access_token
 
 ### --- Error cases ---
 
