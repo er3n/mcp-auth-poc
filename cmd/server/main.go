@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"mcp-auth-poc/internal/authserver"
+	"mcp-auth-poc/internal/middleware"
 )
 
 func main() {
@@ -35,5 +36,5 @@ func main() {
 	http.HandleFunc("POST /register", authserver.NewRegisterHandler(store))
 
 	log.Printf("Server starting on :8080 (issuer: %s)", issuer)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", middleware.Logging(http.DefaultServeMux)))
 }

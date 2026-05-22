@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"mcp-auth-poc/internal/middleware"
 	"mcp-auth-poc/internal/resourceserver"
 )
 
@@ -43,5 +44,5 @@ func main() {
 		resourceserver.NewMCPHandler(resourceURL, pub))
 
 	log.Printf("Resource server starting on :8081 (resource: %s)", resourceURL)
-	log.Fatal(http.ListenAndServe(":8081", mux))
+	log.Fatal(http.ListenAndServe(":8081", middleware.Logging(mux)))
 }
