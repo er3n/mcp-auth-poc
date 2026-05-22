@@ -3,7 +3,11 @@ package authserver
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -40,15 +44,12 @@ func handleAuthorizeForm(w http.ResponseWriter, r *http.Request, store *Store) {
 		return
 	}
 
-	// RFC 7591: only registered clients may initiate authorization.
-	client, ok := store.GetClient(clientID)
-	if !ok {
-		http.Error(w, "unknown client_id — register first via POST /register", http.StatusUnauthorized)
+	client, err := resolveClient(clientID, store)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 
-	// OAuth 2.1 §4.1.1: redirect_uri must exactly match a registered URI.
-	// This prevents open redirector attacks — attackers can't redirect to their own server.
 	if !containsURI(client.RedirectURIs, redirectURI) {
 		http.Error(w, "redirect_uri not registered for this client", http.StatusBadRequest)
 		return
@@ -90,10 +91,9 @@ func handleAuthorizeConfirm(w http.ResponseWriter, r *http.Request, store *Store
 		return
 	}
 
-	// Re-validate on POST too — form values could be tampered.
-	client, ok := store.GetClient(clientID)
-	if !ok {
-		http.Error(w, "unknown client_id", http.StatusUnauthorized)
+	client, err := resolveClient(clientID, store)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 	if !containsURI(client.RedirectURIs, redirectURI) {
@@ -125,13 +125,92 @@ func handleAuthorizeConfirm(w http.ResponseWriter, r *http.Request, store *Store
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
+// resolveClient looks up a client by ID. If the client_id is an HTTPS URL,
+// it follows the CIMD path (MCP Auth spec): fetch the metadata document from
+// that URL and cache the result in the store for subsequent requests.
+// Otherwise it falls back to the DCR store (POST /register path).
+func resolveClient(clientID string, store *Store) (ClientInfo, error) {
+	// Fast path: already in store (DCR-registered or previously cached CIMD).
+	if client, ok := store.GetClient(clientID); ok {
+		return client, nil
+	}
+
+	// CIMD path: client_id must be an HTTPS URL.
+	if !strings.HasPrefix(clientID, "https://") {
+		return ClientInfo{}, fmt.Errorf("unknown client_id")
+	}
+
+	resp, err := http.Get(clientID) //nolint:noctx
+	if err != nil {
+		return ClientInfo{}, fmt.Errorf("failed to fetch client metadata: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ClientInfo{}, fmt.Errorf("client metadata fetch returned %d", resp.StatusCode)
+	}
+
+	var doc struct {
+		ClientID     string   `json:"client_id"`
+		ClientName   string   `json:"client_name"`
+		RedirectURIs []string `json:"redirect_uris"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return ClientInfo{}, fmt.Errorf("invalid client metadata JSON: %w", err)
+	}
+
+	// The client_id in the document must match the URL we fetched from.
+	// This prevents a server at URL A from claiming to be client B.
+	if doc.ClientID != clientID {
+		return ClientInfo{}, fmt.Errorf("client_id in metadata (%s) does not match fetch URL", doc.ClientID)
+	}
+
+	if len(doc.RedirectURIs) == 0 {
+		return ClientInfo{}, fmt.Errorf("client metadata has no redirect_uris")
+	}
+
+	client := ClientInfo{
+		ClientID:     clientID,
+		RedirectURIs: doc.RedirectURIs,
+		Name:         doc.ClientName,
+		CreatedAt:    time.Now(),
+	}
+	store.RegisterClient(client)
+	return client, nil
+}
+
+// containsURI checks whether target matches any URI in the list.
+// For loopback addresses (localhost / 127.0.0.1 / [::1]) the port is ignored
+// per RFC 8252 §7.3 — native apps bind an ephemeral port at runtime, but the
+// CIMD document only lists the base URI without a port.
 func containsURI(uris []string, target string) bool {
 	for _, u := range uris {
 		if u == target {
 			return true
 		}
+		if isLoopback(u) && isLoopback(target) && stripPort(u) == stripPort(target) {
+			return true
+		}
 	}
 	return false
+}
+
+func isLoopback(rawURL string) bool {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	h := u.Hostname()
+	return h == "localhost" || h == "127.0.0.1" || h == "::1"
+}
+
+func stripPort(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	u.Host = u.Hostname()
+	return u.String()
 }
 
 func generateCode() (string, error) {
